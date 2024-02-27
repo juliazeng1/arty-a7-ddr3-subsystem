@@ -1536,6 +1536,254 @@ function integer clogb2 (input integer size);
 
 
 
+//**************************************************************************
+
+// Combinational Write Address buses
+
+//**************************************************************************
+
+   reg [3:0] m_awid;
+   reg [27:0] m_awaddr;
+   reg [7:0] m_awlen;
+   reg [2:0] m_awsize;
+   reg [1:0] m_awburst;
+   reg m_awlock;
+   reg [3:0] m_awcache;
+   reg [2:0] m_awprot;
+   reg [3:0] m_awqos;
+   reg m_awvalid;
+
+//**************************************************************************
+
+// Combinational Write Data buses
+
+//**************************************************************************
+
+   reg [127:0] m_wdata;
+   reg [15:0] m_wstrb;
+   reg m_wlast;
+   reg m_wvalid;
+
+//**************************************************************************
+
+// Combinational Write Response buses
+
+//**************************************************************************
+
+   reg m_bready;  // The bready is a master (drives DDR3 controller)
+
+//**************************************************************************
+
+// Combinational Read Address buses
+
+//**************************************************************************
+
+   reg [3:0] m_arid;
+   reg [27:0] m_araddr;
+   reg [7:0] m_arlen;
+   reg [2:0] m_arsize;
+   reg [1:0] m_arburst;
+   reg m_arlock;
+   reg [3:0] m_arcache;
+   reg [2:0] m_arprot;
+   reg [3:0] m_arqos;
+   reg m_arvalid;
+
+
+   parameter reg [3:0] WAIT=0,
+                     WR_ADDR=1,
+                     WR_DATA_1=2,
+                     WR_DATA_2=3,
+                     WR_DATA_3=4,
+                     WR_RESP=5,
+                     FINISH=6,
+                     WR_DATA_IDLE=7;
+
+   reg [3:0] state = 0;  // need to initialize the state -- how to make this automatic?
+
+   reg [3:0] next_state;
+
+   reg [1:0] counter;   // counter for Write Data state
+
+
+   // assign s_axi_arid = m_arid;
+   // assign s_axi_araddr = m_araddr;
+   // assign s_axi_arlen = m_arlen;
+   // assign s_axi_arsize = m_arsize;
+   // assign s_axi_arburst = m_arburst;
+   // assign s_axi_arlock = m_arlock;
+   // assign s_axi_arcache = m_arcache;
+   // assign s_axi_arprot = m_arprot;
+   // assign s_axi_arqos = m_arqos;
+   // assign s_axi_arvalid = m_arvalid;
+   assign s_axi_arid = 0;
+   assign s_axi_araddr = 0;
+   assign s_axi_arlen = 0;
+   assign s_axi_arsize = 0;
+   assign s_axi_arburst = 0;
+   assign s_axi_arlock = 0;
+   assign s_axi_arcache = 0;
+   assign s_axi_arprot = 0;
+   assign s_axi_arqos = 0;
+   assign s_axi_arvalid = 0;
+
+   // always @(*) begin
+   //    m_arid = 0;
+   //    m_araddr = 0;
+   //    m_arlen = 0;
+   //    m_arsize = 0;
+   //    m_arburst = 0;
+   //    m_arlock = 0;
+   //    m_arcache = 0;
+   //    m_arprot = 0;
+   //    m_arqos = 0;
+   //    m_arvalid = 0;
+   // end
+
+
+
+   // state transition logic
+   always @(*) begin
+      case (state)
+         WAIT: next_state = (btn) ? WR_ADDR : WAIT;
+         // TODO: might want to use discrete signals for this
+         WR_ADDR: next_state = (s_axi_awready && s_axi_awvalid) ? WR_DATA_1 : WR_ADDR;
+         // WR_DATA: next_state = (s_axi_wready && s_axi_wvalid && s_axi_wlast) ? WR_RESP : WR_DATA;
+         WR_DATA_IDLE: next_state = WR_DATA_IDLE;
+         WR_DATA_1: next_state = (s_axi_wready && s_axi_wvalid) ? WR_DATA_2 : WR_DATA_1;
+         WR_DATA_2: next_state = (s_axi_wready && s_axi_wvalid) ? WR_DATA_3 : WR_DATA_2;
+         WR_DATA_3: next_state = (s_axi_wready && s_axi_wvalid && s_axi_wlast) ? WR_RESP : WR_DATA_3;
+         WR_RESP: next_state = (s_axi_bready && s_axi_bvalid) ? FINISH : WR_RESP;
+         FINISH: next_state = FINISH;
+         default: begin
+            next_state = 3'bzzz;  // should not be here
+         end
+      endcase
+   end
+
+
+
+   assign s_axi_awaddr = m_awaddr;
+   assign s_axi_awvalid = m_awvalid;
+   assign s_axi_awid = m_awid;
+   assign s_axi_awlen = m_awlen;
+   assign s_axi_awsize = m_awsize;
+   assign s_axi_awburst = m_awburst;
+   assign s_axi_awlock = m_awlock;
+   assign s_axi_awcache = m_awcache;
+   assign s_axi_awprot = m_awprot;
+   assign s_axi_awqos = m_awqos;
+
+   // Write Address State combinational logic
+   always @(*) begin
+      if (state == WR_ADDR) begin   // only want to do this once
+         m_awaddr = 28'h000_0000;     // BUG: I think I can't use this addresss. TODO: check address editor.
+         m_awvalid = 1'b1;
+         m_awid = 4'b0;
+         m_awlen = 8'h2;
+         m_awsize = 3'h4;
+         m_awburst = 2'b1;
+         m_awlock = 1'b0;
+         m_awcache = 0;
+         m_awprot = 0;
+         m_awqos = 0;
+      end else begin
+         m_awaddr = 28'h000_0000;
+         m_awvalid = 1'b0;
+         m_awid = 4'b0;
+         m_awlen = 8'h0;
+         m_awsize = 3'h0;
+         m_awburst = 2'b1;
+         m_awlock = 1'b0;
+         m_awcache = 0;
+         m_awprot = 0;
+         m_awqos = 0;
+      end
+   end
+
+
+
+
+   assign s_axi_wdata = m_wdata;
+   assign s_axi_wlast = m_wlast;
+   assign s_axi_wvalid = m_wvalid;
+   assign s_axi_wstrb = m_wstrb;
+
+   // Write Data State combinational logic
+   always @(*) begin
+      if (state == WR_DATA_3) begin  // TODO: Q: should I be monitoring the wready?
+         m_wvalid = 1'b1;
+         m_wdata = 128'hACCACA_DABACCA_ACCACACA_DACACCA_ADAD;
+         m_wlast = 1'b1;   // TODO: in the future will need to use a FIFO for multiple transactions
+         m_wstrb = 16'hFFFF;
+      end else if (state == WR_DATA_1 || state == WR_DATA_2) begin
+         m_wvalid = 1'b1;
+         m_wdata = 128'hACCACA_DABACCA_ACCACACA_DACACCA_ADAD;
+         m_wlast = 1'b0;   // TODO: in the future will need to use a FIFO for multiple transactions
+         m_wstrb = 16'hFFFF;
+      end else begin
+         m_wvalid = 1'b0;
+         m_wdata = 128'h0;
+         m_wlast = 1'b0;
+         m_wstrb = 16'h0;
+      end
+   end
+   // Write Data State combinational logic
+   // always @(*) begin
+   //    if (state == WR_DATA && s_axi_wready && counter == 3) begin  // TODO: Q: should I be monitoring the wready?
+   //       m_wvalid = 1'b1;
+   //       m_wdata = 128'hACCACA_DABACCA_ACCACACA_DACACCA_ADAD;
+   //       m_wlast = 1'b1;   // TODO: in the future will need to use a FIFO for multiple transactions
+   //       m_wstrb = 16'hFFFF;
+   //    end else if (state == WR_DATA && s_axi_wready && counter < 3) begin
+   //       m_wvalid = 1'b1;
+   //       m_wdata = 128'hACCACA_DABACCA_ACCACACA_DACACCA_ADAD;
+   //       m_wlast = 1'b0;   // TODO: in the future will need to use a FIFO for multiple transactions
+   //       m_wstrb = 16'hFFFF;
+   //    end else begin
+   //       m_wvalid = 1'b0;
+   //       m_wdata = 128'h0;
+   //       m_wlast = 1'b0;
+   //       m_wstrb = 16'h0;
+   //    end
+   // end
+
+
+
+
+   assign s_axi_bready = m_bready;
+
+   // Write Response State combinational logic
+   always @(*) begin
+      if (state == WR_RESP) begin
+         m_bready = 1'b1;  // TODO: could test putting back-pressure and not assert this right away
+      end else begin
+         m_bready = 1'b0;
+      end
+   end
+   // Drive the discrete ddr3_controller signals
+   // always @(posedge clk) begin
+   //    // Write Address channel
+   //    s_axi_awaddr <= m_awaddr;
+   //    s_axi_awvalid <= m_awvalid;
+
+   //    // Write Data channel
+   //    // S_AXI_0_wvalid <= m_wvalid;
+   //    // S_AXI_0_wdata <= m_wdata;
+   // end
+
+   always @(posedge clk or negedge aresetn) begin
+      if (~aresetn)
+         state <= WAIT;
+      else begin
+         if (next_state == WR_ADDR)
+            counter <= counter + 1;
+         else
+            counter <= 0;
+         state <= next_state;
+      end
+   end
+
 
 
 //    mig_7series_v4_2_axi4_tg #(
