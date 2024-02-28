@@ -1589,6 +1589,20 @@ function integer clogb2 (input integer size);
    reg [3:0] m_arqos;
    reg m_arvalid;
 
+//**************************************************************************
+
+// Combinational Read Data buses
+
+//**************************************************************************
+
+   reg m_rready;
+   // reg [3:0] m_rid;
+   // reg [127:0] m_rdata;
+   // reg [1:0] m_rresp;
+   // reg m_rlast;
+   // reg m_rvalid;
+   
+
 
    parameter reg [3:0] WAIT=0,
                      WR_ADDR=1,
@@ -1596,8 +1610,10 @@ function integer clogb2 (input integer size);
                      WR_DATA_2=3,
                      WR_DATA_3=4,
                      WR_RESP=5,
-                     FINISH=6,
-                     WR_DATA_IDLE=7;
+                     RD_ADDR=6,
+                     RD_DATA=7,
+                     FINISH=8,
+                     WR_DATA_IDLE=9;
 
    reg [3:0] state = 0;  // need to initialize the state -- how to make this automatic?
 
@@ -1605,6 +1621,9 @@ function integer clogb2 (input integer size);
 
    reg [1:0] counter;   // counter for Write Data state
 
+
+
+   // Temporarily drives the Read Address channel buses
 
    // assign s_axi_arid = m_arid;
    // assign s_axi_araddr = m_araddr;
@@ -1653,7 +1672,9 @@ function integer clogb2 (input integer size);
          WR_DATA_1: next_state = (s_axi_wready && s_axi_wvalid) ? WR_DATA_2 : WR_DATA_1;
          WR_DATA_2: next_state = (s_axi_wready && s_axi_wvalid) ? WR_DATA_3 : WR_DATA_2;
          WR_DATA_3: next_state = (s_axi_wready && s_axi_wvalid && s_axi_wlast) ? WR_RESP : WR_DATA_3;
-         WR_RESP: next_state = (s_axi_bready && s_axi_bvalid) ? FINISH : WR_RESP;
+         WR_RESP: next_state = (s_axi_bready && s_axi_bvalid) ? RD_ADDR : WR_RESP;
+         RD_ADDR: next_state = (s_axi_arready && s_axi_arvalid) ? RD_DATA : RD_ADDR;
+         RD_DATA: next_state = (s_axi_rready && s_axi_rvalid && s_axi_rlast) ? FINISH : RD_DATA;
          FINISH: next_state = FINISH;
          default: begin
             next_state = 3'bzzz;  // should not be here
@@ -1772,6 +1793,19 @@ function integer clogb2 (input integer size);
    //    // S_AXI_0_wdata <= m_wdata;
    // end
 
+
+   assign s_axi_arready = m_rready;
+   
+   // Read Data State combinational logic
+   always @(*) begin
+      if (state == RD_ADDR) begin
+         m_rready = 1'b1;  // TODO: need to collect the read data from the DDR3 memory
+      end else begin
+         m_rready = 1'b0;
+      end
+   end
+
+
    always @(posedge clk or negedge aresetn) begin
       if (~aresetn)
          state <= WAIT;
@@ -1783,6 +1817,8 @@ function integer clogb2 (input integer size);
          state <= next_state;
       end
    end
+
+
 
 
 
