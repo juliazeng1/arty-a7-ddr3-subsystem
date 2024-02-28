@@ -1550,7 +1550,6 @@ function integer clogb2 (input integer size);
    reg m_awlock;
    reg [3:0] m_awcache;
    reg [2:0] m_awprot;
-   reg [3:0] m_awqos;
    reg m_awvalid;
 
 //**************************************************************************
@@ -1586,7 +1585,6 @@ function integer clogb2 (input integer size);
    reg m_arlock;
    reg [3:0] m_arcache;
    reg [2:0] m_arprot;
-   reg [3:0] m_arqos;
    reg m_arvalid;
 
 //**************************************************************************
@@ -1612,8 +1610,7 @@ function integer clogb2 (input integer size);
                      WR_RESP=5,
                      RD_ADDR=6,
                      RD_DATA=7,
-                     FINISH=8,
-                     WR_DATA_IDLE=9;
+                     FINISH=8;
 
    reg [3:0] state = 0;  // need to initialize the state -- how to make this automatic?
 
@@ -1623,52 +1620,13 @@ function integer clogb2 (input integer size);
 
 
 
-   // Temporarily drives the Read Address channel buses
-
-   // assign s_axi_arid = m_arid;
-   // assign s_axi_araddr = m_araddr;
-   // assign s_axi_arlen = m_arlen;
-   // assign s_axi_arsize = m_arsize;
-   // assign s_axi_arburst = m_arburst;
-   // assign s_axi_arlock = m_arlock;
-   // assign s_axi_arcache = m_arcache;
-   // assign s_axi_arprot = m_arprot;
-   // assign s_axi_arqos = m_arqos;
-   // assign s_axi_arvalid = m_arvalid;
-   assign s_axi_arid = 0;
-   assign s_axi_araddr = 0;
-   assign s_axi_arlen = 0;
-   assign s_axi_arsize = 0;
-   assign s_axi_arburst = 0;
-   assign s_axi_arlock = 0;
-   assign s_axi_arcache = 0;
-   assign s_axi_arprot = 0;
-   assign s_axi_arqos = 0;
-   assign s_axi_arvalid = 0;
-
-   // always @(*) begin
-   //    m_arid = 0;
-   //    m_araddr = 0;
-   //    m_arlen = 0;
-   //    m_arsize = 0;
-   //    m_arburst = 0;
-   //    m_arlock = 0;
-   //    m_arcache = 0;
-   //    m_arprot = 0;
-   //    m_arqos = 0;
-   //    m_arvalid = 0;
-   // end
-
-
 
    // state transition logic
    always @(*) begin
       case (state)
          WAIT: next_state = (btn) ? WR_ADDR : WAIT;
-         // TODO: might want to use discrete signals for this
          WR_ADDR: next_state = (s_axi_awready && s_axi_awvalid) ? WR_DATA_1 : WR_ADDR;
          // WR_DATA: next_state = (s_axi_wready && s_axi_wvalid && s_axi_wlast) ? WR_RESP : WR_DATA;
-         WR_DATA_IDLE: next_state = WR_DATA_IDLE;
          WR_DATA_1: next_state = (s_axi_wready && s_axi_wvalid) ? WR_DATA_2 : WR_DATA_1;
          WR_DATA_2: next_state = (s_axi_wready && s_axi_wvalid) ? WR_DATA_3 : WR_DATA_2;
          WR_DATA_3: next_state = (s_axi_wready && s_axi_wvalid && s_axi_wlast) ? WR_RESP : WR_DATA_3;
@@ -1677,7 +1635,7 @@ function integer clogb2 (input integer size);
          RD_DATA: next_state = (s_axi_rready && s_axi_rvalid && s_axi_rlast) ? FINISH : RD_DATA;
          FINISH: next_state = FINISH;
          default: begin
-            next_state = 3'bzzz;  // should not be here
+            next_state = 3'bzzz;
          end
       endcase
    end
@@ -1693,7 +1651,6 @@ function integer clogb2 (input integer size);
    assign s_axi_awlock = m_awlock;
    assign s_axi_awcache = m_awcache;
    assign s_axi_awprot = m_awprot;
-   assign s_axi_awqos = m_awqos;
 
    // Write Address State combinational logic
    always @(*) begin
@@ -1707,7 +1664,6 @@ function integer clogb2 (input integer size);
          m_awlock = 1'b0;
          m_awcache = 0;
          m_awprot = 0;
-         m_awqos = 0;
       end else begin
          m_awaddr = 28'h000_0000;
          m_awvalid = 1'b0;
@@ -1718,7 +1674,6 @@ function integer clogb2 (input integer size);
          m_awlock = 1'b0;
          m_awcache = 0;
          m_awprot = 0;
-         m_awqos = 0;
       end
    end
 
@@ -1782,23 +1737,53 @@ function integer clogb2 (input integer size);
          m_bready = 1'b0;
       end
    end
-   // Drive the discrete ddr3_controller signals
-   // always @(posedge clk) begin
-   //    // Write Address channel
-   //    s_axi_awaddr <= m_awaddr;
-   //    s_axi_awvalid <= m_awvalid;
-
-   //    // Write Data channel
-   //    // S_AXI_0_wvalid <= m_wvalid;
-   //    // S_AXI_0_wdata <= m_wdata;
-   // end
 
 
-   assign s_axi_arready = m_rready;
-   
-   // Read Data State combinational logic
+
+
+   assign s_axi_arid = m_arid;
+   assign s_axi_araddr = m_araddr;
+   assign s_axi_arlen = m_arlen;
+   assign s_axi_arsize = m_arsize;
+   assign s_axi_arburst = m_arburst;
+   assign s_axi_arlock = m_arlock;
+   assign s_axi_arcache = m_arcache;
+   assign s_axi_arprot = m_arprot;
+   assign s_axi_arvalid = m_arvalid;
+
+   // Read Address State combinational logic
    always @(*) begin
       if (state == RD_ADDR) begin
+         m_arid = 0;
+         m_araddr = 0;
+         m_arlen = 2;
+         m_arsize = 4;
+         m_arburst = 1;
+         m_arlock = 0;
+         m_arcache = 0;
+         m_arprot = 0;
+         m_arvalid = 1;
+      end else begin
+         m_arid = 0;
+         m_araddr = 0;
+         m_arlen = 0;
+         m_arsize = 0;
+         m_arburst = 1;
+         m_arlock = 0;
+         m_arcache = 0;
+         m_arprot = 0;
+         m_arvalid = 0;
+      end
+   end
+
+
+
+
+   assign s_axi_rready = m_rready;
+
+   // Read Data State combinational logic
+   always @(*) begin
+      if (state == RD_DATA) begin
          m_rready = 1'b1;  // TODO: need to collect the read data from the DDR3 memory
       end else begin
          m_rready = 1'b0;
